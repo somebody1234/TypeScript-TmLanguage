@@ -58,7 +58,7 @@ variables:
   matchingParenthesis: (\(([^\(\)]|(\(([^\(\)]|\([^\(\)]*\))*\)))*\))
   matchingBraces: (\{([^\{\}]|(\{([^\{\}]|\{[^\{\}]*\})*\}))*\})
   matchingBrackets: (\[([^\[\]]|(\[([^\[\]]|\[[^\[\]]*\])*\]))*\])
-  inlineComment: \/\*([^\*]|(\*[^\/]))*\*\/
+  inlineComment: \/\*(?!:)([^\*]|(\*[^\/]))*\*\/
   startOfDeclaration: '{{startOfIdentifier}}(?:(\bexport)\s+)?(?:(\bdeclare)\s+)?'
   lookBehindOfPossiblyMultilineArrowWithDestructuring: (?<=[(=,])
   lookBehindOfPossiblyMultilineArrow: (?<=[(=,]|=>|{{lookBehindReturn}})
@@ -160,6 +160,7 @@ repository:
     - include: '#expression'
     - include: '#punctuation-semicolon'
     - include: '#string'
+    - include: '#comment-type-include'
     - include: '#comment'
 
   declaration:
@@ -350,6 +351,39 @@ repository:
       end: (?=$|^|[;,=}]|({{startOfIdentifier}}(of|in)\s+))
       patterns:
       - include: '#var-single-variable-type-annotation'
+    # TODO: proper scoping for all (/*::)
+    - name: meta.var-single-variable.expr.ts
+      begin: '{{constantVar}}(?=/*::\s*\!)'
+      beginCaptures:
+        '1': { name: meta.definition.variable.ts variable.other.constant.ts }
+      end: (?<=\*/)
+      patterns:
+      - name: comment.type.block.annotation.ts
+        begin: (/*::)\s*(\!)
+        beginCaptures:
+          '1': { name: comment.type.include.annotation.begin.ts }
+          '2': { name: keyword.operator.definiteassignment.ts }
+        end: \*/
+        endCaptures:
+          '0': { name: comment.type.include.annotation.end.ts }
+        patterns:
+        - include: '#var-single-variable-type-annotation'
+    - name: meta.var-single-variable.expr.ts
+      begin: ({{identifier}})(?=/*::\s*\!)
+      beginCaptures:
+        '1': { name: meta.definition.variable.ts variable.other.readwrite.ts }
+      end: (?<=\*/)
+      patterns:
+      - name: comment.type.block.annotation.ts
+        begin: (/*::)\s*(\!)
+        beginCaptures:
+          '1': { name: comment.type.include.annotation.begin.ts }
+          '2': { name: keyword.operator.definiteassignment.ts }
+        end: \*/
+        endCaptures:
+          '0': { name: comment.type.include.annotation.end.ts }
+        patterns:
+        - include: '#var-single-variable-type-annotation'
 
   var-single-const:
     patterns:
@@ -629,32 +663,70 @@ repository:
     - include: '#punctuation-comma'
 
   field-declaration:
-    name: meta.field.declaration.ts
-    begin: (?x)(?<!\()(?:{{startOfIdentifier}}(readonly)\s+)?(?=\s*{{propertyNameWithPrivate}}\s*(?:(?:(\?)|(\!))\s*)?(=|:|;|,|\}|$))
-    beginCaptures:
-      '1': { name: storage.modifier.ts }
-    end: (?x)(?=\}|;|,|$|(^(?!\s*{{propertyNameWithPrivate}}\s*(?:(?:(\?)|(\!))\s*)?(=|:|;|,|$))))|(?<=\})
     patterns:
-    - include: '#variable-initializer'
-    - include: '#type-annotation'
-    - include: '#string'
-    - include: '#array-literal'
-    - include: '#numeric-literal'
-    - include: '#comment'
-    # function assignment |
-    # typeannotation is fn type: < | () | (... | (param: | (param, | (param? | (param= | (param) =>
-    - match: |-
-        (?x)({{propertyIdentifier}})(?:(\?)|(\!))?(?=\s*{{functionLikeAssignmentOrType}})
-      captures:
-        '1': { name: meta.definition.property.ts entity.name.function.ts }
-        '2': { name: keyword.operator.optional.ts }
-        '3': { name: keyword.operator.definiteassignment.ts }
-    - name: meta.definition.property.ts variable.object.property.ts
-      match: '{{propertyIdentifier}}'
-    - name: keyword.operator.optional.ts
-      match: \?
-    - name: keyword.operator.definiteassignment.ts
-      match: \!
+    - name: meta.field.declaration.ts
+      begin: (?x)(?<!\()(?:{{startOfIdentifier}}(readonly)\s+)?(?=\s*{{propertyNameWithPrivate}}\s*(?:(?:(\?)|(\!))\s*)?(=|(/\*)?:|;|,|\}|$))
+      beginCaptures:
+        '1': { name: storage.modifier.ts }
+      end: (?x)(?=\}|;|,|$|(^(?!\s*{{propertyNameWithPrivate}}\s*(?:(?:(\?)|(\!))\s*)?(=|(/\*)?:|;|,|$))))|(?<=\})
+      patterns:
+      - include: '#variable-initializer'
+      - include: '#type-annotation'
+      - include: '#string'
+      - include: '#array-literal'
+      - include: '#numeric-literal'
+      - include: '#comment'
+      # function assignment |
+      # typeannotation is fn type: < | () | (... | (param: | (param, | (param? | (param= | (param) =>
+      - match: |-
+          (?x)({{propertyIdentifier}})(?:(\?)|(\!))?(?=\s*{{functionLikeAssignmentOrType}})
+        captures:
+          '1': { name: meta.definition.property.ts entity.name.function.ts }
+          '2': { name: keyword.operator.optional.ts }
+          '3': { name: keyword.operator.definiteassignment.ts }
+      - name: meta.definition.property.ts variable.object.property.ts
+        match: '{{propertyIdentifier}}'
+      - name: keyword.operator.optional.ts
+        match: \?
+      - name: keyword.operator.definiteassignment.ts
+        match: \!
+    - name: meta.field.declaration.ts
+      begin: (?x)(?<!\()(?:{{startOfIdentifier}}(readonly)\s+)?(?=\s*{{propertyNameWithPrivate}}\s*(/\*::)\s*(?:(?:(\?)|(\!))\s*)?(=|:|;|,|\}|$))
+      beginCaptures:
+        '1': { name: storage.modifier.ts }
+      end: \*/
+      patterns:
+      - include: '#variable-initializer'
+      - name: meta.type.annotation.js comment.type.block.fielddeclaration.ts
+        begin: '(/\*::)\s*(?:(\?)|(\!))'
+        beginCaptures:
+          '1': { name: comment.type.include.fielddeclaration.begin.ts }
+          '2': { name: keyword.operator.optional.ts }
+          '3': { name: keyword.operator.definiteassignment.ts }
+        end: \*/
+        endCaptures:
+          '0': { name: comment.type.include.fielddeclaration.end.ts }
+        patterns:
+        - include: '#type'
+      - include: '#type-annotation'
+      - include: '#string'
+      - include: '#array-literal'
+      - include: '#numeric-literal'
+      - include: '#comment'
+      # function assignment |
+      # typeannotation is fn type: < | () | (... | (param: | (param, | (param? | (param= | (param) =>
+      - match: |-
+          (?x)({{propertyIdentifier}})(?:(\?)|(\!))?(?=\s*{{functionLikeAssignmentOrType}})
+        captures:
+          '1': { name: meta.definition.property.ts entity.name.function.ts }
+          '2': { name: keyword.operator.optional.ts }
+          '3': { name: keyword.operator.definiteassignment.ts }
+      - name: meta.definition.property.ts variable.object.property.ts
+        match: '{{propertyIdentifier}}'
+      - name: keyword.operator.optional.ts
+        match: \?
+      - name: keyword.operator.definiteassignment.ts
+        match: \!
 
   variable-initializer:
     patterns:
@@ -709,8 +781,9 @@ repository:
 
   function-body:
     patterns:
-    - include: '#comment'
+    - include: '#commented-question-type-parameters'
     - include: '#type-parameters'
+    - include: '#comment'
     - include: '#function-parameters'
     - include: '#return-type'
     - include: '#type-function-return-type'
@@ -735,7 +808,7 @@ repository:
       - include: '#function-body'
     # new or call signature
     - name: meta.method.declaration.ts
-      begin: '(?x){{startOfIdentifier}}(?:\b(override)\s+)?(?:\b(public|private|protected)\s+)?(?:\b(abstract)\s+)?(?:\b(async)\s+)?(?:(?:\s*\b(new)\b(?!:){{endOfIdentifier}})|(?:(\*)\s*)?)(?=\s*({{typeParameters}})?[\(])'
+      begin: '(?x){{startOfIdentifier}}(?:\b(override)\s+)?(?:\b(public|private|protected)\s+)?(?:\b(abstract)\s+)?(?:\b(async)\s+)?(?:(?:\s*\b(new)\b(?!:){{endOfIdentifier}})|(?:(\*)\s*)?)(?=\s*({{typeParameters}}|/\*::\s*{{typeParameters}}\s*\*/)?[\(])'
       beginCaptures:
         '1': { name: storage.modifier.ts } # captures keyword (override)
         '2': { name: storage.modifier.ts } # captures keyword (public or private or protected)
@@ -749,7 +822,7 @@ repository:
       - include: '#function-body'
     # method, accessor
     - name: meta.method.declaration.ts
-      begin: '(?x){{startOfIdentifier}}(?:\b(override)\s+)?(?:\b(public|private|protected)\s+)?(?:\b(abstract)\s+)?(?:\b(async)\s+)?(?:\b(get|set)\s+)?(?:(\*)\s*)?(?=\s*({{propertyName}}\s*(\??))\s*({{typeParameters}})?[\(])'
+      begin: '(?x){{startOfIdentifier}}(?:\b(override)\s+)?(?:\b(public|private|protected)\s+)?(?:\b(abstract)\s+)?(?:\b(async)\s+)?(?:\b(get|set)\s+)?(?:(\*)\s*)?(?=\s*({{propertyName}}\s*(\?|/\*::\s*\?\s*\*/|/\*::\s*\?\s*{{typeParameters}}\s*\*/)?)\s*({{typeParameters}}|/\*::\s*{{typeParameters}}\s*\*/)?[\(])'
       beginCaptures:
         '1': { name: storage.modifier.ts } # captures keyword (override)
         '2': { name: storage.modifier.ts } # captures keyword (public or private or protected)
@@ -783,7 +856,7 @@ repository:
       - include: '#method-declaration-name'
 
   method-declaration-name:
-    begin: (?x)(?={{propertyName}}\s*(\??)\s*[\(\<])
+    begin: (?x)(?={{propertyName}}\s*(\?|/\*::\s*\?\s*\*/)?\s*[\(\<])
     end: (?=\(|\<)
     patterns:
     - include: '#string'
@@ -793,6 +866,12 @@ repository:
       match: '{{identifier}}'
     - name: keyword.operator.optional.ts
       match: \?
+    - name: comment.type.block.optional.method.ts
+      match: (/\*::)\s*(\?)\s*(\*/)
+      captures:
+        '1': { name: comment.type.include.optional.method.begin.ts }
+        '2': { name: keyword.operator.optional.ts }
+        '3': { name: comment.type.include.optional.method.end.ts }
 
   arrow-function:
     patterns:
@@ -946,27 +1025,53 @@ repository:
     - include: '#class-or-interface-body'
 
   class-or-interface-heritage:
-    begin: '{{startOfIdentifier}}(?:\b(extends|implements)\b){{endOfIdentifier}}'
-    beginCaptures:
-      '1': { name: storage.modifier.ts }
-    end: (?=\{)
     patterns:
-    - include: '#comment'
-    - include: '#class-or-interface-heritage'
-    - include: '#type-parameters'
-    # match expressions before matching identifiers
-    - include: '#expressionWithoutIdentifiers'
-    # identifiers are treated as inherited class
-    - match: '({{identifier}})\s*{{propertyAccess}}(?=\s*{{identifier}}(\s*{{propertyAccessPreIdentifier}}{{identifier}})*\s*)'
-      captures:
-        '1': { name: entity.name.type.module.ts }
-        '2': { name: punctuation.accessor.ts }
-        '3': { name: punctuation.accessor.optional.ts }
-    - match: ({{identifier}})
-      captures:
-        '1': { name: entity.other.inherited-class.ts }
-    # match punctuations of the expression
-    - include: '#expressionPunctuations'
+    - begin: '{{startOfIdentifier}}(?:\b(extends|implements)\b){{endOfIdentifier}}'
+      beginCaptures:
+        '1': { name: storage.modifier.ts }
+      end: (?=\{)
+      patterns:
+      - include: '#comment'
+      - include: '#class-or-interface-heritage'
+      - include: '#type-parameters'
+      # match expressions before matching identifiers
+      - include: '#expressionWithoutIdentifiers'
+      # identifiers are treated as inherited class
+      - match: '({{identifier}})\s*{{propertyAccess}}(?=\s*{{identifier}}(\s*{{propertyAccessPreIdentifier}}{{identifier}})*\s*)'
+        captures:
+          '1': { name: entity.name.type.module.ts }
+          '2': { name: punctuation.accessor.ts }
+          '3': { name: punctuation.accessor.optional.ts }
+      - match: ({{identifier}})
+        captures:
+          '1': { name: entity.other.inherited-class.ts }
+      # match punctuations of the expression
+      - include: '#expressionPunctuations'
+    - name: comment.type.block.implements.ts
+      begin: '(/\*::)\s*(implements){{endOfIdentifier}}'
+      beginCaptures:
+        '1': { name: comment.type.include.implements.begin.ts }
+        '2': { name: storage.modifier.ts }
+      end: \*/
+      endCaptures:
+        '0': { name: comment.type.include.implements.end.ts }
+      patterns:
+      - include: '#comment'
+      - include: '#class-or-interface-heritage'
+      - include: '#type-parameters'
+      # match expressions before matching identifiers
+      - include: '#expressionWithoutIdentifiers'
+      # identifiers are treated as inherited class
+      - match: '({{identifier}})\s*{{propertyAccess}}(?=\s*{{identifier}}(\s*{{propertyAccessPreIdentifier}}{{identifier}})*\s*)'
+        captures:
+          '1': { name: entity.name.type.module.ts }
+          '2': { name: punctuation.accessor.ts }
+          '3': { name: punctuation.accessor.optional.ts }
+      - match: ({{identifier}})
+        captures:
+          '1': { name: entity.other.inherited-class.ts }
+      # match punctuations of the expression
+      - include: '#expressionPunctuations'
 
   class-or-interface-body:
     begin: \{
@@ -976,7 +1081,10 @@ repository:
     endCaptures:
       '0': { name: punctuation.definition.block.ts }
     patterns:
-    - include: '#comment'
+    - include: '#class-or-interface-member'
+  
+  class-or-interface-member:
+    patterns:
     - include: '#decorator'
     # The : could most probably be end of ternary expression so to avoid matching expression following it as field declaration, explicitly match it as expression
     - begin: (?<=:)\s*
@@ -986,9 +1094,9 @@ repository:
     - include: '#method-declaration'
     - include: '#indexer-declaration'
     - include: '#field-declaration'
-    - include: "#string"
-    - include: '#type-annotation'
+    - include: '#string'
     - include: '#variable-initializer'
+    - include: '#access-modifiers'
     - include: '#access-modifier'
     - include: '#property-accessor'
     - include: '#async-modifier'
@@ -997,6 +1105,27 @@ repository:
     - include: '#expression'
     - include: '#punctuation-comma'
     - include: '#punctuation-semicolon'
+    - name: comment.type.block.classmembers.ts
+      begin: '/\*::'
+      beginCaptures:
+        '0': { name: comment.type.include.classmembers.begin.ts }
+      end: \*/
+      endCaptures:
+        '0': { name: comment.type.include.classmembers.end.ts }
+      patterns:
+      - include: '#class-or-interface-member'
+    - include: '#type-annotation'
+    - include: '#comment'
+
+  access-modifiers:
+    name: storage.modifiers.ts comment.type.block.modifiers.ts
+    # must be one line, otherwise we assume the entire class member is in the comment-as-type
+    match: '(/\*::)\s*(abstract|declare|override|public|protected|private|readonly|static)(?:\s+(abstract|declare|override|public|protected|private|readonly|static))*\s*(\*/)'
+    captures:
+      '1': { name: type.comment.include.modifiers.begin.ts }
+      '2': { name: storage.modifier.ts }
+      '3': { name: storage.modifier.ts }
+      '4': { name: type.comment.include.modifiers.end.ts }
 
   access-modifier:
     name: storage.modifier.ts
@@ -1473,6 +1602,23 @@ repository:
       - include: '#possibly-arrow-return-type'
       - include: '#expression'
     - include: '#punctuation-comma'
+    - name: meta.object.member.ts comment.type.block.as.const.ts
+      match: '(/\*::)\s*(as)\s+(const)\s*(\*/)'
+      captures:
+        '1': { name: comment.type.include.as.const.begin.ts }
+        '2': { name: keyword.control.as.ts }
+        '3': { name: storage.modifier.ts }
+        '4': { name: comment.type.include.as.const.end.ts }
+    - name: meta.object.member.ts comment.type.block.as.ts
+      begin: '(/\*::)\s*(as)\s+'
+      beginCaptures:
+        '1': { name: comment.type.include.as.begin.ts }
+        '2': { name: keyword.control.as.ts }
+      end: \*/
+      endCaptures:
+        '0': { name: comment.type.include.as.end.ts }
+      patterns:
+      - include: '#type'
 
   #ternary expression
   ternary-expression:
@@ -1690,11 +1836,28 @@ repository:
     - include: '#typeof-operator'
     - name: keyword.operator.expression.void.ts
       match: '{{startOfIdentifier}}void{{endOfIdentifier}}'
-      #handle as operator specifically to be recognized only if it is 'as' followed by space
+    - name: comment.type.block.as.const.ts
+      match: '(/\*::)\s*(as)\s+(const)\s*(\*/)?'
+      captures:
+        '1': { name: comment.type.include.as.const.begin.ts }
+        '2': { name: keyword.control.as.ts }
+        '3': { name: storage.modifier.ts }
+        '4': { name: comment.type.include.as.const.end.ts }
     - match: '{{startOfIdentifier}}(as)\s+(const)(?=\s*($|[;,:})\]]))'
       captures:
         '1': { name: keyword.control.as.ts }
         '2': { name: storage.modifier.ts }
+    - name: meta.object.member.ts comment.type.block.as.ts
+      begin: '(/\*::)\s*(as)\s+'
+      beginCaptures:
+        '1': { name: comment.type.include.as.begin.ts }
+        '2': { name: keyword.control.as.ts }
+      end: \*/
+      endCaptures:
+        '0': { name: comment.type.include.as.end.ts }
+      patterns:
+      - include: '#type'
+      #handle as operator specifically to be recognized only if it is 'as' followed by space
     - begin: '{{startOfIdentifier}}(as)\s+'
       beginCaptures:
         '1': { name: keyword.control.as.ts }
@@ -1729,7 +1892,7 @@ repository:
     - name: keyword.operator.increment.ts
       match: \+\+
     - name: keyword.operator.arithmetic.ts
-      match: '%|\*|/|-|\+'
+      match: '%|\*|/(?![/*])|-|\+'
     # capture the arithmetic sign followed by variable or parenthesized expression so that it is not interpreted as regex
     - begin: (?<=[_$[:alnum:])\]])\s*(?=({{inlineComment}}\s*)+(?:(/=)|(?:(/)(?![/*]))))
       end: (?:(/=)|(?:(/)(?!\*([^\*]|(\*[^\/]))*\*\/)))
@@ -2210,6 +2373,26 @@ repository:
       end: (?<![:|&])((?=[,);\}\]]|//)|(?==[^>])|(?=^\s*$)|((?<=\S)(?=\s*$))|((?<=[\}>\]\)]|[_$[:alpha:]])\s*(?=\{)))
       patterns:
       - include: '#type'
+    - name: meta.type.annotation.ts comment.type.block.annotation.ts
+      begin: (/\*::)\s*(:)
+      beginCaptures:
+        '1': { name: comment.type.include.annotation.begin.ts }
+        '2': { name: keyword.operator.type.annotation.ts }
+      end: \*/
+      endCaptures:
+        '0': { name: comment.type.include.annotation.end.ts }
+      patterns:
+      - include: '#type'
+    - name: meta.type.annotation.ts comment.type.block.annotation.ts
+      begin: (/\*)(:)
+      beginCaptures:
+        '1': { name: comment.type.annotation.begin.ts }
+        '2': { name: keyword.operator.type.annotation.ts }
+      end: \*/
+      endCaptures:
+        '0': { name: comment.type.annotation.end.ts }
+      patterns:
+      - include: '#type'
 
   parameter-type-annotation:
     patterns:
@@ -2218,6 +2401,27 @@ repository:
       beginCaptures:
         '1': { name: keyword.operator.type.annotation.ts }
       end: (?=[,)])|(?==[^>])
+      patterns:
+      - include: '#type'
+    - name: meta.type.annotation.ts comment.type.block.annotation.parameter.ts
+      begin: (/\*::)\s*(\?)?\s*(:)
+      beginCaptures:
+        '1': { name: comment.type.include.annotation.parameter.begin.ts }
+        '2': { name: keyword.operator.optional.ts }
+        '3': { name: keyword.operator.type.annotation.ts }
+      end: \*/
+      endCaptures:
+        '0': { name: comment.type.include.annotation.parameter.end.ts }
+      patterns:
+      - include: '#type'
+    - name: meta.type.annotation.ts comment.type.block.annotation.parameter.ts
+      begin: (/\*)(:)
+      beginCaptures:
+        '1': { name: comment.type.annotation.parameter.begin.ts }
+        '2': { name: keyword.operator.type.annotation.ts }
+      end: \*/
+      endCaptures:
+        '0': { name: comment.type.annotation.parameter.end.ts }
       patterns:
       - include: '#type'
 
@@ -2283,35 +2487,85 @@ repository:
     - include: '#type-predicate-operator'
     - include: '#type'
 
+  commented-question-type-parameters:
+    - name: meta.type.parameters.ts comment.type.block.typeparameters.optional.ts
+      begin: '(/\*::)\s*(\?)\s*(<)'
+      beginCaptures:
+        '1': { name: comment.type.include.typeparameters.optional.begin.ts }
+        '2': { name: keyword.operator.optional.ts }
+        '3': { name: punctuation.definition.typeparameters.begin.ts }
+      end: '(>)\s*(\*/)'
+      endCaptures:
+        '1': { name: punctuation.definition.typeparameters.end.ts }
+        '2': { name: comment.type.include.typeparameters.optional.end.ts }
+      patterns:
+      - include: '#comment'
+      - name: storage.modifier.ts
+        match: '{{startOfIdentifier}}(extends){{endOfIdentifier}}'
+      - include: '#type'
+      - include: '#punctuation-comma'
+      - name: keyword.operator.assignment.ts
+        match: (=)(?!>)
+
   #type parameters
   type-parameters:
-    name: meta.type.parameters.ts
-    begin: '(<)'
-    beginCaptures:
-      '1': { name: punctuation.definition.typeparameters.begin.ts }
-    end: '(>)'
-    endCaptures:
-      '1': { name: punctuation.definition.typeparameters.end.ts }
     patterns:
-    - include: '#comment'
-    - name: storage.modifier.ts
-      match: '{{startOfIdentifier}}(extends){{endOfIdentifier}}'
-    - include: '#type'
-    - include: '#punctuation-comma'
-    - name: keyword.operator.assignment.ts
-      match: (=)(?!>)
+    - name: meta.type.parameters.ts
+      begin: '(<)'
+      beginCaptures:
+        '1': { name: punctuation.definition.typeparameters.begin.ts }
+      end: '(>)'
+      endCaptures:
+        '1': { name: punctuation.definition.typeparameters.end.ts }
+      patterns:
+      - include: '#comment'
+      - name: storage.modifier.ts
+        match: '{{startOfIdentifier}}(extends){{endOfIdentifier}}'
+      - include: '#type'
+      - include: '#punctuation-comma'
+      - name: keyword.operator.assignment.ts
+        match: (=)(?!>)
+    - name: meta.type.parameters.ts comment.type.block.typeparameters.ts
+      begin: '(/\*::)\s*(<)'
+      beginCaptures:
+        '1': { name: comment.type.include.typeparameters.begin.ts }
+        '2': { name: punctuation.definition.typeparameters.begin.ts }
+      end: '(>)\s*(\*/)'
+      endCaptures:
+        '1': { name: punctuation.definition.typeparameters.end.ts }
+        '2': { name: comment.type.include.typeparameters.end.ts }
+      patterns:
+      - include: '#comment'
+      - name: storage.modifier.ts
+        match: '{{startOfIdentifier}}(extends){{endOfIdentifier}}'
+      - include: '#type'
+      - include: '#punctuation-comma'
+      - name: keyword.operator.assignment.ts
+        match: (=)(?!>)
 
   #type arguments
   type-arguments:
-    name: meta.type.parameters.ts
-    begin: \<
-    beginCaptures:
-      '0': { name: punctuation.definition.typeparameters.begin.ts }
-    end: \>
-    endCaptures:
-      '0': { name: punctuation.definition.typeparameters.end.ts }
     patterns:
-    - include: '#type-arguments-body'
+    - name: meta.type.parameters.ts
+      begin: \<
+      beginCaptures:
+        '0': { name: punctuation.definition.typeparameters.begin.ts }
+      end: \>
+      endCaptures:
+        '0': { name: punctuation.definition.typeparameters.end.ts }
+      patterns:
+      - include: '#type-arguments-body'
+    - name: meta.type.parameters.ts comment.type.block.typeparameters.typearguments.ts
+      begin: (/\*::)\s*(\<)
+      beginCaptures:
+        '1': { name: comment.type.include.typeparameters.typearguments.begin.ts }
+        '2': { name: punctuation.definition.typeparameters.begin.ts }
+      end: (\>)\s*(\*/)
+      endCaptures:
+        '1': { name: punctuation.definition.typeparameters.end.ts }
+        '2': { name: comment.type.include.typeparameters.typearguments.end.ts }
+      patterns:
+      - include: '#type-arguments-body'
 
   type-arguments-body:
     patterns:
@@ -2427,13 +2681,17 @@ repository:
     patterns:
     #parameter name only if followed by type annotation
     - match: |-
-        (?x)(?:{{startOfIdentifier}}(public|private|protected|readonly)\s+)?(?:(\.\.\.)\s*)?(?<!=|:){{startOfIdentifier}}(?:(this)|({{identifier}}))\s*(\??)(?=\s*{{functionLikeType}})
+        (?x)(?:{{startOfIdentifier}}(public|private|protected|readonly)\s+)?(?:(\.\.\.)\s*)?(?<!=|:){{startOfIdentifier}}(?:(this)|(/\*::)\s*(this)\s*(,)?\s*(\*/)|({{identifier}}))\s*(\??)(?=\s*{{functionLikeType}})
       captures:
         '1': { name: storage.modifier.ts }
         '2': { name: keyword.operator.rest.ts }
         '3': { name: entity.name.function.ts variable.language.this.ts }
-        '4': { name: entity.name.function.ts }
-        '5': { name: keyword.operator.optional.ts }
+        '4': { name: comment.type.include.this.begin.ts }
+        '5': { name: entity.name.function.ts variable.language.this.ts }
+        '6': { name: punctuation.separator.comma.ts }
+        '7': { name: comment.type.include.this.end.ts }
+        '8': { name: entity.name.function.ts }
+        '9': { name: keyword.operator.optional.ts }
     - match: |-
         (?x)(?:{{startOfIdentifier}}(public|private|protected|readonly)\s+)?(?:(\.\.\.)\s*)?(?<!=|:){{startOfIdentifier}}(?:(this)|({{identifier}}))\s*(\??)(?=:)
       captures:
@@ -2442,6 +2700,23 @@ repository:
         '3': { name: variable.parameter.ts variable.language.this.ts }
         '4': { name: variable.parameter.ts }
         '5': { name: keyword.operator.optional.ts }
+    - begin: |-
+        (?x)(?:{{startOfIdentifier}}(public|private|protected|readonly)\s+)?(?:(\.\.\.)\s*)?(?<!=|:){{startOfIdentifier}}(?=/\*::\s*(this)\s*:)
+      beginCaptures:
+        '1': { name: storage.modifier.ts }
+        '2': { name: keyword.operator.rest.ts }
+      end: (?<=\*/)
+      patterns:
+      - name: comment.type.block.thisparameter.ts
+        begin: (/\*::)\s*(this)
+        beginCaptures:
+          '1': { name: comment.type.include.thisparameter.begin.ts }
+          '2': { name: variable.parameter.ts variable.language.this.ts }
+        end: \*/
+        endCaptures:
+          '0': { name: comment.type.include.thisparameter.end.ts }
+        patterns:
+        - include: '#type-annotation'
     - include: '#type-annotation'
     - name: punctuation.separator.parameter.ts
       match: ','
@@ -2818,6 +3093,18 @@ repository:
     - name: constant.character.escape.backslash.regexp
       match: \\.
 
+  #comment type include
+  comment-type-include:
+    name: comment.type.block.ts
+    begin: '/\*::'
+    beginCaptures:
+      '0': { name: comment.type.include.statements.begin.ts }
+    end: \*/
+    endCaptures:
+      '0': { name: comment.type.include.statements.end.ts }
+    patterns:
+    - include: '#statements'
+
   #comments and directives
   comment:
     patterns:
@@ -2831,7 +3118,7 @@ repository:
       patterns:
       - include: '#docblock'
     - name: comment.block.ts
-      begin: (/\*)(?:\s*((@)internal)(?=\s|(\*/)))?
+      begin: (/\*)(?!:)(?:\s*((@)internal)(?=\s|(\*/)))?
       beginCaptures:
         '1': { name: punctuation.definition.comment.ts }
         '2': { name: storage.type.internaldeclaration.ts }
