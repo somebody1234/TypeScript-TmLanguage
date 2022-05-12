@@ -59,45 +59,45 @@ variables:
   matchingBraces: (\{([^\{\}]|(\{([^\{\}]|\{[^\{\}]*\})*\}))*\})
   matchingBrackets: (\[([^\[\]]|(\[([^\[\]]|\[[^\[\]]*\])*\]))*\])
   inlineComment: \/\*(?!:)([^\*]|(\*[^\/]))*\*\/
+  inlineCommentOrTypeComment: \/\*([^\*]|(\*[^\/]))*\*\/
   startOfDeclaration: '{{startOfIdentifier}}(?:(\bexport)\s+)?(?:(\bdeclare)\s+)?'
   lookBehindOfPossiblyMultilineArrowWithDestructuring: (?<=[(=,])
   lookBehindOfPossiblyMultilineArrow: (?<=[(=,]|=>|{{lookBehindReturn}})
   lookBehindOfObjectMemberPossiblyMultilineArrow: (?<=:)
   # Identifier start | matching braces | matching parenthesis | matching square brackets
   typeParamersStart: ([_$[:alpha:]]|{{matchingBraces}}|{{matchingParenthesis}}|{{matchingBrackets}})
-  typeParameters: (?:\/\*::)?(<\s*{{typeParamersStart}}([^=<>]|=[^<]|\<\s*{{typeParamersStart}}([^=<>]|=[^<]|\<\s*{{typeParamersStart}}([^=<>]|=[^<])*\>)*\>)*>\s*)(?:\*\/)?
+  typeParameters: (\/\*::\s*)?(<\s*{{typeParamersStart}}([^=<>]|=[^<]|\<\s*{{typeParamersStart}}([^=<>]|=[^<]|\<\s*{{typeParamersStart}}([^=<>]|=[^<])*\>)*\>)*>\s*)(\*\/\s*)?
   # Identifier start | matching braces | matching parenthesis | matching square brackets | matching strings
   typeArgumentsStart: (((keyof|infer|typeof|readonly)\s+)|(({{identifier}}|{{matchingBraces}}|{{matchingParenthesis}}|{{matchingBrackets}}|{{quotedStrings}})(?=\s*([\<\>\,\.\[]|=>|&(?!&)|\|(?!\|)))))
   typeArgumentsInnerExpressionPart: '[^<>\(]|{{matchingParenthesis}}|(?<==)\>'
-  typeArguments: '(?:\/\*::)?<\s*{{typeArgumentsStart}}({{typeArgumentsInnerExpressionPart}}|\<\s*{{typeArgumentsStart}}(({{typeArgumentsInnerExpressionPart}}|\<\s*{{typeArgumentsStart}}({{typeArgumentsInnerExpressionPart}})*(?<!=)\>))*(?<!=)\>)*(?<!=)>(?:\*\/)?'
+  typeArguments: '(\/\*::\s*)?<\s*{{typeArgumentsStart}}({{typeArgumentsInnerExpressionPart}}|\<\s*{{typeArgumentsStart}}(({{typeArgumentsInnerExpressionPart}}|\<\s*{{typeArgumentsStart}}({{typeArgumentsInnerExpressionPart}})*(?<!=)\>))*(?<!=)\>)*(?<!=)>(\s*\*\/)?'
   possiblyMultilineTypeArgument: (<\s*[\{\[\(]\s*$)
   functionCallLookup: \s*(?:(\?\.\s*)|(\!))?(({{typeArguments}}\s*)?\()
   functionCallNamedTarget: (({{identifier}})(\s*{{propertyAccessPreIdentifier}}({{propertyIdentifier}}))*)|({{propertyAccessPreIdentifier}}{{propertyIdentifier}})
   functionCallTarget: (({{functionCallNamedTarget}})|(?<=[\)]))
   possiblyMultilineCallWithTypeArguments: \s*(?:(\?\.\s*)|(\!))?{{possiblyMultilineTypeArgument}}
   possiblyType: \s*([^<>\(\)\{\}]|\<([^<>]|\<([^<>]|\<[^<>]+\>)+\>)+\>|\([^\(\)]+\)|\{[^\{\}]+\})+
-  typeparamertStartOfArrow: ''
+  typeAnnotation: (:|/\*:|/\*::\s*:)
   arrowLookup: |-
     # sure shot arrow functions even if => is on new line
     (
       {{typeParameters}}?
       [(]\s*({{inlineComment}}\s*)*
       (
-        ([)]\s*:) |                                                                                       # ():
-        ((\.\.\.\s*)?{{identifier}}\s*:)                                                                  # [(]param: | [(]...param:
+        ([)]\s*{{typeAnnotation}}) |                                                                      # (): | ()/*:
+        ((\.\.\.\s*)?{{identifier}}\s*{{typeAnnotation}})                                                 # [(]param: | [(]...param: | [(]param/*:
       )
     ) |
-    {{typeparamertStartOfArrow}}
     # arrow function possible to detect only with => on same line
     (
       {{typeParameters}}?                                                                                 # typeparameters
       \(\s*({{inlineComment}}\s*)*(([_$[:alpha:]]|{{matchingBraces}}|{{matchingBrackets}}|(\.\.\.\s*[_$[:alpha:]]))([^()\'\"\`]|{{matchingParenthesis}}|{{quotedStrings}})*)?\)   # parameters
-      (\s*:{{possiblyType}})?                                                                        # return type
+      (\s*{{typeAnnotation}}{{possiblyType}}(\s*\*/)?)?                                                   # return type
       \s*=>                                                                                               # arrow operator
     )
   possiblyMultilineArrowExpressionBeforeEndOfLine: ((({{typeParameters}})?\()|(<))
-  possiblyMultilineObjectBindingPattern: '{{matchingBraces}}\s*((:\s*\{?$)|(({{possiblyType}}\s*)?=\s*))'
-  possiblyMultilineArrayBindingPattern: '{{matchingBrackets}}\s*((:\s*\[?$)|(({{possiblyType}}\s*)?=\s*))'
+  possiblyMultilineObjectBindingPattern: '{{matchingBraces}}\s*(({{typeAnnotation}}\s*\{?$)|(({{possiblyType}}\s*)?=\s*))'
+  possiblyMultilineArrayBindingPattern: '{{matchingBrackets}}\s*(({{typeAnnotation}}\s*\[?$)|(({{possiblyType}}\s*)?=\s*))'
   possiblyMultilineArrowWParamters: '((([\{\[]\s*)?$)|({{possiblyMultilineObjectBindingPattern}})|({{possiblyMultilineArrayBindingPattern}}))'
   possiblyMultilineArrowWithoutTypeParameters: '[\(]\s*{{possiblyMultilineArrowWParamters}}'
   possiblyMultilineArrow: ((<\s*$)|({{typeParameters}}?{{possiblyMultilineArrowWithoutTypeParameters}}))  # during lookup treat <typeparameters>?( followed by line end as arrow or < followed by new line
@@ -114,7 +114,7 @@ variables:
       ))
     )
   functionLikeType: |-
-    (:\s*(
+    ({{typeAnnotation}}\s*(
       (<) |
       ([(]\s*(
         ([)]) |
@@ -125,15 +125,15 @@ variables:
         ))
       ))
     )) |
-    (:\s*{{startOfIdentifier}}Function{{endOfIdentifier}}) |
-    (:\s*{{possiblyMultilineArrow}})
+    ({{typeAnnotation}}\s*{{startOfIdentifier}}Function{{endOfIdentifier}}) |
+    ({{typeAnnotation}}\s*{{possiblyMultilineArrow}})
   functionLikeAssignmentOrType: |-
     \s*
     # function assignment |
     (={{functionOrArrowLookup}}) |
     # typeannotation is fn type: < | () | (... | (param: | (param, | (param? | (param= | (param) =>
     {{functionLikeType}} |
-    (:\s*(=>|{{matchingParenthesis}}|(<[^<>]*>)|[^<>(),=])+={{functionOrArrowLookup}})
+    (\s*(=>|{{matchingParenthesis}}|(<[^<>]*>)|[^<>(),=])+={{functionOrArrowLookup}})
   arrowFunctionEnd: (?==>|\{|(^\s*(export|function|class|interface|let|var|const|import|enum|namespace|module|type|abstract|declare)\s+))
   regexpTail: ([dgimsuy]+|(?![\/\*])|(?=\/\*))(?!\s*[a-zA-Z0-9_$])
   completeRegexp: \/(?![\/*])(?=(?:[^\/\\\[]|\\.|\[([^\]\\]|\\.)*\])+\/{{regexpTail}})
@@ -351,7 +351,6 @@ repository:
       end: (?=$|^|[;,=}]|({{startOfIdentifier}}(of|in)\s+))
       patterns:
       - include: '#var-single-variable-type-annotation'
-    # TODO: proper scoping for all (/*::)
     - name: meta.var-single-variable.expr.ts
       begin: '{{constantVar}}(?=/\*::\s*\!)'
       beginCaptures:
@@ -586,6 +585,18 @@ repository:
         '4': { name: variable.parameter.ts }
         '5': { name: keyword.operator.optional.ts }
 
+  commented-this-parameter:
+    - name: typecommentblock.thisparameter.ts
+      begin: (/\*::)\s*(this)
+      beginCaptures:
+        '1': { name: comment.type.include.thisparameter.begin.ts }
+        '2': { name: entity.name.function.ts variable.language.this.ts }
+      end: \*/
+      endCaptures:
+        '0': { name: comment.type.include.thisparameter.end.ts }
+      patterns:
+      - include: '#type-annotation'
+
   destructuring-parameter:
     patterns:
     - name: meta.parameter.object-binding-pattern.ts
@@ -666,12 +677,24 @@ repository:
   field-declaration:
     patterns:
     - name: meta.field.declaration.ts
-      begin: (?x)(?<!\()(?:{{startOfIdentifier}}(readonly)\s+)?(?=\s*{{propertyNameWithPrivate}}\s*(?:(?:(\?)|(\!))\s*)?(=|(/\*)?:|;|,|\}|$))
+      begin: (?x)(?<!\()(?:{{startOfIdentifier}}(readonly)\s+)?(?=\s*{{propertyNameWithPrivate}}\s*(/\*::)\s*(?:(?:(\?)|(\!))\s*)?(=|:|;|,|\}|$))
       beginCaptures:
         '1': { name: storage.modifier.ts }
-      end: (?x)(?=\}|;|,|$|(^(?!\s*{{propertyNameWithPrivate}}\s*(?:(?:(\?)|(\!))\s*)?(=|(/\*)?:|;|,|$))))|(?<=\})
+      end: (?<=\*/)
       patterns:
       - include: '#variable-initializer'
+      - name: meta.type.annotation.ts typecommentblock.fielddeclaration.ts
+        begin: '(/\*::)\s*(?:(\?)|(\!))'
+        beginCaptures:
+          '1': { name: comment.type.include.fielddeclaration.begin.ts }
+          '2': { name: keyword.operator.optional.ts }
+          '3': { name: keyword.operator.definiteassignment.ts }
+        end: \*/
+        endCaptures:
+          '0': { name: comment.type.include.fielddeclaration.end.ts }
+        patterns:
+        - include: '#type-annotation'
+        # TODO: should it include string etc. from below too
       - include: '#type-annotation'
       - include: '#string'
       - include: '#array-literal'
@@ -692,23 +715,12 @@ repository:
       - name: keyword.operator.definiteassignment.ts
         match: \!
     - name: meta.field.declaration.ts
-      begin: (?x)(?<!\()(?:{{startOfIdentifier}}(readonly)\s+)?(?=\s*{{propertyNameWithPrivate}}\s*(/\*::)\s*(?:(?:(\?)|(\!))\s*)?(=|:|;|,|\}|$))
+      begin: (?x)(?<!\()(?:{{startOfIdentifier}}(readonly)\s+)?(?=\s*{{propertyNameWithPrivate}}\s*(?:(?:(\?)|(\!))\s*)?(=|(/\*)?:|;|,|\}|$))
       beginCaptures:
         '1': { name: storage.modifier.ts }
-      end: \*/
+      end: (?x)(?=\}|;|,|$|(^(?!\s*{{propertyNameWithPrivate}}\s*(?:(?:(\?)|(\!))\s*)?(=|(/\*)?:|;|,|$))))|(?<=\})
       patterns:
       - include: '#variable-initializer'
-      - name: meta.type.annotation.js typecommentblock.fielddeclaration.ts
-        begin: '(/\*::)\s*(?:(\?)|(\!))'
-        beginCaptures:
-          '1': { name: comment.type.include.fielddeclaration.begin.ts }
-          '2': { name: keyword.operator.optional.ts }
-          '3': { name: keyword.operator.definiteassignment.ts }
-        end: \*/
-        endCaptures:
-          '0': { name: comment.type.include.fielddeclaration.end.ts }
-        patterns:
-        - include: '#type'
       - include: '#type-annotation'
       - include: '#string'
       - include: '#array-literal'
@@ -968,6 +980,7 @@ repository:
     - include: '#decorator'
     - include: '#destructuring-parameter'
     - include: '#parameter-name'
+    - include: '#commented-this-parameter'
     - include: '#parameter-type-annotation'
     - include: '#variable-initializer'
     - name: punctuation.separator.parameter.ts
@@ -1931,6 +1944,12 @@ repository:
         '1': { name: keyword.operator.logical.ts }
         '2': { name: keyword.operator.assignment.compound.ts }
         '3': { name: keyword.operator.arithmetic.ts }
+    - name: typecommentblock.nonnull.ts
+      match: (/\*::)\s*(!)\s*(\*/)
+      captures:
+        '1': { name: comment.type.include.nonnull.begin.ts }
+        '2': { name: keyword.operator.nonnull.ts }
+        '3': { name: comment.type.include.nonnull.end.ts }
     - name: keyword.operator.logical.ts
       match: \!|&&|\|\||\?\?
     - name: keyword.operator.bitwise.ts
@@ -2412,7 +2431,7 @@ repository:
       begin: (:)(?=\s*\S)
       beginCaptures:
         '1': { name: keyword.operator.type.annotation.ts }
-      end: (?<![:|&])((?=$|^|[,);\}\]]|//)|(?==[^>])|((?<=[\}>\]\)]|[_$[:alpha:]])\s*(?=\{)))
+      end: (?<![:|&])((?=$|^|[,);\}\]]|//|\*/)|(?==[^>])|((?<=[\}>\]\)]|[_$[:alpha:]])\s*(?=\{)))
       patterns:
       - include: '#type'
     # if type starts on next line use modified line endings as end of type annotation eg. complete empty line
@@ -2420,7 +2439,7 @@ repository:
       begin: (:)
       beginCaptures:
         '1': { name: keyword.operator.type.annotation.ts }
-      end: (?<![:|&])((?=[,);\}\]]|//)|(?==[^>])|(?=^\s*$)|((?<=\S)(?=\s*$))|((?<=[\}>\]\)]|[_$[:alpha:]])\s*(?=\{)))
+      end: (?<![:|&])((?=[,);\}\]]|//|\*/)|(?==[^>])|(?=^\s*$)|((?<=\S)(?=\s*$))|((?<=[\}>\]\)]|[_$[:alpha:]])\s*(?=\{)))
       patterns:
       - include: '#type'
     - name: meta.type.annotation.ts typecommentblock.annotation.ts
@@ -2450,7 +2469,7 @@ repository:
       begin: (:)
       beginCaptures:
         '1': { name: keyword.operator.type.annotation.ts }
-      end: (?=[,)])|(?==[^>])
+      end: (?=[,)])|(?==[^>])|(?=\*/)
       patterns:
       - include: '#type'
     - name: meta.type.annotation.ts typecommentblock.annotation.parameter.ts
@@ -2483,7 +2502,7 @@ repository:
       begin: (?<=\))\s*(:)(?=\s*\S)
       beginCaptures:
         '1': { name: keyword.operator.type.annotation.ts }
-      end: (?<![:|&])(?=$|^|[{};,]|//)
+      end: (?<![:|&])(?=$|^|[{};,]|//|\*/)
       patterns:
       - include: '#return-type-core'
     # if type starts on next line use modified line endings as end of type annotation eg. complete empty line
@@ -2491,7 +2510,7 @@ repository:
       begin: (?<=\))\s*(:)
       beginCaptures:
         '1': { name: keyword.operator.type.annotation.ts }
-      end: (?<![:|&])((?=[{};,]|//|^\s*$)|((?<=\S)(?=\s*$)))
+      end: (?<![:|&])((?=[{};,]|//|\*/|^\s*$)|((?<=\S)(?=\s*$)))
       patterns:
       - include: '#return-type-core'
     - name: meta.return.type.ts typecommentblock.return.type.ts
@@ -2514,37 +2533,79 @@ repository:
         '0': { name: comment.type.include.annotation.return.type.end.ts }
       patterns:
       - include: '#return-type-core'
+    - include: '#comment'
 
   return-type-core:
     patterns:
-    - include: '#comment'
     # Handle returning of object type specifically here so as to not confuse it with the start of function block
     - begin: (?<=[:|&])(?=\s*\{)
       end: (?<=\})
       patterns:
       - include: '#type-object'
     - include: '#type-predicate-operator'
+    # TODO: #type includes #comment which we don't want
     - include: '#type'
 
   #arrow return type
   arrow-return-type:
-    name: meta.return.type.arrow.ts
-    begin: '(?<=\))\s*(:)'
-    beginCaptures:
-      '1': { name: keyword.operator.type.annotation.ts }
-    end: '{{arrowFunctionEnd}}'
     patterns:
-    - include: '#arrow-return-type-body'
+    - name: meta.return.type.arrow.ts
+      begin: '(?<=\))\s*(:)'
+      beginCaptures:
+        '1': { name: keyword.operator.type.annotation.ts }
+      end: '{{arrowFunctionEnd}}'
+      patterns:
+      - include: '#arrow-return-type-body'
+    - name: meta.return.type.arrow.ts
+      begin: '(?<=\))\s*(?=/\*:)'
+      beginCaptures:
+        '1': { name: keyword.operator.type.annotation.ts }
+      end: (?<=\*/)
+      patterns:
+      - include: '#arrow-commented-return-type-body'
 
-  #This is the check if the exoression '): something =>'' can be matched as return type of arrow
+  #This is the check if the expression '): something =>'' can be matched as return type of arrow
   possibly-arrow-return-type:
-    begin: (?<=\)|^)\s*(:)(?={{possiblyType}}\s*=>)
-    beginCaptures:
-      '1': { name: meta.arrow.ts meta.return.type.arrow.ts keyword.operator.type.annotation.ts }
-    end: '{{arrowFunctionEnd}}'
-    contentName: meta.arrow.ts meta.return.type.arrow.ts
     patterns:
-    - include: '#arrow-return-type-body'
+    - begin: (?<=\)|^)\s*(:)(?={{possiblyType}}\s*=>)
+      beginCaptures:
+        '1': { name: meta.arrow.ts meta.return.type.arrow.ts keyword.operator.type.annotation.ts }
+      end: '{{arrowFunctionEnd}}'
+      contentName: meta.arrow.ts meta.return.type.arrow.ts
+      patterns:
+      - include: '#arrow-return-type-body'
+    - begin: (?<=\)|^)\s*(?=(?:/\*:|/\*::\s*:){{possiblyType}}\s*\*/\s*=>)
+      end: (?<=\*/)
+      contentName: meta.arrow.ts meta.return.type.arrow.ts
+      patterns:
+      - include: '#arrow-commented-return-type-body'
+
+  arrow-commented-return-type-body:
+    patterns:
+    - name: typecommentblock.annotation.return.type.ts
+      begin: (/\*::)\s*(:)
+      beginCaptures:
+        '1': { name: comment.type.include.annotation.return.type.begin.ts }
+        '2': { name: keyword.operator.type.annotation.ts }
+      end: \*/
+      endCaptures:
+        '0': { name: comment.type.include.annotation.return.type.end.ts }
+      patterns:
+      - include: '#type-object'
+      - include: '#type-predicate-operator'
+      - include: '#type'
+    - name: typecommentblock.annotation.return.type.ts
+      begin: (/\*)(:)
+      beginCaptures:
+        '1': { name: comment.type.annotation.return.type.begin.ts }
+        '2': { name: keyword.operator.type.annotation.ts }
+      end: \*/
+      endCaptures:
+        '0': { name: comment.type.annotation.return.type.end.ts }
+      patterns:
+      - include: '#type-object'
+      - include: '#type-predicate-operator'
+      - include: '#type'
 
   arrow-return-type-body:
     patterns:
@@ -2837,7 +2898,7 @@ repository:
       begin: (=>)(?=\s*\S)
       beginCaptures:
         '1': { name: storage.type.function.arrow.ts }
-      end: (?<!=>)(?<![|&])(?=[,\]\)\{\}=;>:\?]|//|$)
+      end: (?<!=>)(?<![|&])(?=[,\]\)\{\}=;>:\?]|\*/|//|$)
       patterns:
       - include: '#type-function-return-type-core'
     # if type starts on next line use modified line endings as end of type annotation eg. complete empty line
@@ -2845,7 +2906,7 @@ repository:
       begin: '=>'
       beginCaptures:
         '0': { name: storage.type.function.arrow.ts }
-      end: (?<!=>)(?<![|&])((?=[,\]\)\{\}=;:\?>]|//|^\s*$)|((?<=\S)(?=\s*$)))
+      end: (?<!=>)(?<![|&])((?=[,\]\)\{\}=;:\?>]|\*/|//|^\s*$)|((?<=\S)(?=\s*$)))
       patterns:
       - include: '#type-function-return-type-core'
 
@@ -3165,7 +3226,7 @@ repository:
 
   #comment type include
   comment-type-include:
-    name: typecommentblock.ts
+    name: typecommentblock.statements.ts
     begin: '/\*::'
     beginCaptures:
       '0': { name: comment.type.include.statements.begin.ts }
